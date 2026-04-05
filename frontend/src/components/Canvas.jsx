@@ -100,7 +100,15 @@ const Canvas = ({ roomId, user, isDrawer, gameState }) => {
           <ToolBtn active={tool === 'brush'} onClick={() => setTool('brush')} icon={<Paintbrush size={18}/>} />
           <ToolBtn active={tool === 'eraser'} onClick={() => setTool('eraser')} icon={<Eraser size={18}/>} />
           <div className="h-px bg-[#27272a] my-2" />
-          <button onClick={() => socket.emit('clearCanvas', roomId)} className="p-4 rounded-xl text-rose-500 hover:bg-rose-500/10"><Trash2 size={18}/></button>
+          <button 
+            onClick={() => { 
+                window.dispatchEvent(new CustomEvent('clearCanvas')); 
+                socket.emit('clearCanvas', roomId); 
+            }} 
+            className="p-4 rounded-xl text-rose-500 hover:bg-rose-500/10"
+          >
+            <Trash2 size={18}/>
+          </button>
           <div className="flex-1" />
           <div className="grid grid-cols-2 gap-2">
             {['#6366f1','#f43f5e','#10b981','#f59e0b','#ffffff','#0ea5e9','#a855f7','#000000'].map(c => (
@@ -121,7 +129,15 @@ const Canvas = ({ roomId, user, isDrawer, gameState }) => {
                     <MiniToolBtn active={tool === 'brush'} onClick={() => setTool('brush')} icon={<Paintbrush size={14}/>} />
                     <MiniToolBtn active={tool === 'eraser'} onClick={() => setTool('eraser')} icon={<Eraser size={14}/>} />
                  </div>
-                 <button onClick={() => socket.emit('clearCanvas', roomId)} className="p-2 text-rose-500 hover:text-rose-400 transition-colors"><Trash2 size={14}/></button>
+                 <button 
+                   onClick={() => { 
+                       window.dispatchEvent(new CustomEvent('clearCanvas')); 
+                       socket.emit('clearCanvas', roomId); 
+                   }} 
+                   className="p-2 text-rose-500 hover:text-rose-400 transition-colors"
+                 >
+                   <Trash2 size={14}/>
+                 </button>
                  <div className="flex-1 flex items-center bg-[#18181b] px-3 rounded-lg border border-[#27272a] h-8">
                    <input type="range" min="1" max="50" value={brushSize} onChange={e => setBrushSize(parseInt(e.target.value))} className="w-full accent-indigo-500" />
                    <span className="text-[9px] font-mono font-black text-indigo-400 ml-2 w-4">{brushSize}</span>
