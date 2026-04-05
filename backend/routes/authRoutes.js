@@ -1,3 +1,4 @@
+const express = require('express');
 const { register, login, logout, refresh, googleAuth, verifyEmail, updateProfile } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
