@@ -358,7 +358,7 @@ const Dashboard = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-            <main className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[140px]">
+            <main className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-auto md:auto-rows-[140px]">
 
                 {/* Profile */}
                 <motion.div
@@ -368,21 +368,21 @@ const Dashboard = () => {
                         setNewAvatar(user?.avatar || '');
                         setShowProfileModal(true);
                     }}
-                    className="md:col-span-4 md:row-span-2 bg-[#18181b] border border-[#27272a] rounded-[2rem] p-8 flex flex-col justify-between group transition-all cursor-pointer relative overflow-hidden"
+                    className="col-span-1 md:col-span-4 md:row-span-2 bg-[#18181b] border border-[#27272a] rounded-[2rem] p-8 flex flex-col justify-between group transition-all cursor-pointer relative overflow-hidden"
                 >
                     <div className="absolute top-4 right-4 p-2 bg-[#27272a] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
                       <Camera size={14} className="text-[#a1a1aa]" />
                     </div>
                     <div className="flex items-center gap-6">
-                        <div className="w-20 h-20 bg-zinc-800 rounded-3xl border border-[#27272a] overflow-hidden group-hover:scale-105 transition-transform">
+                        <div className="w-20 h-20 bg-zinc-800 rounded-3xl border border-[#27272a] overflow-hidden group-hover:scale-105 transition-transform shrink-0">
                              <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${user?.avatar || user?.username}`} alt="Avatar" />
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-black tracking-tight mb-1">{user?.username}</h2>
+                        <div className="min-w-0">
+                            <h2 className="text-2xl font-black tracking-tight mb-1 truncate">{user?.username}</h2>
                             <p className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] font-mono">Rank {user?.rank || 1} Elite</p>
                         </div>
                     </div>
-                    <div className="flex items-center justify-between text-[#52525b] border-t border-[#27272a] pt-6">
+                    <div className="flex items-center justify-between text-[#52525b] border-t border-[#27272a] pt-6 mt-6 md:mt-0">
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">Gear</p>
                         <p className="text-xs font-black text-[#a1a1aa]">{user?.activeGear || 'Standard Ink'}</p>

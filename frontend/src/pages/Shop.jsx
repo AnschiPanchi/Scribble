@@ -38,23 +38,23 @@ const Shop = () => {
 
     return (
         <div className="min-h-screen bg-[#09090b] text-white p-10 font-sans">
-            <header className="max-w-6xl mx-auto flex items-center justify-between mb-20">
-                <div className="flex items-center gap-6">
-                    <button onClick={() => navigate('/')} className="p-3 bg-[#18181b] border border-[#27272a] rounded-xl hover:bg-[#27272a] transition-colors">
+            <header className="max-w-6xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between mb-12 md:mb-20 gap-6">
+                <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto">
+                    <button onClick={() => navigate('/')} className="p-3 bg-[#18181b] border border-[#27272a] rounded-xl hover:bg-[#27272a] transition-colors shrink-0">
                         <ArrowLeft size={20} />
                     </button>
                     <div>
-                        <h2 className="text-4xl font-black tracking-tight uppercase italic text-indigo-500">Ink Store</h2>
+                        <h2 className="text-3xl md:text-4xl font-black tracking-tight uppercase italic text-indigo-500">Ink Store</h2>
                     </div>
                 </div>
                 
-                <div className="bg-[#18181b] border border-[#27272a] rounded-2xl px-6 py-3 flex items-center gap-3">
+                <div className="bg-[#18181b] border border-[#27272a] rounded-2xl px-6 py-3 flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
                     <Zap size={18} className="text-amber-400" />
                     <span className="font-mono font-black text-xl">{user?.coins || 0} IC</span>
                 </div>
             </header>
 
-            <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <main className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8 pb-10">
                 {items.map((item) => {
                     const isEquipped = user?.activeGear === item.name;
                     return (

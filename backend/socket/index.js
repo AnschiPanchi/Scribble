@@ -175,6 +175,10 @@ const startDrawingPhase = (roomId, io, wordObj) => {
   room.lastDrawerActivity = Date.now();
 
   const drawer = room.players[room.drawerIndex];
+  if (!drawer) {
+    console.log(`⚠ Skip DRAWING in ${roomId}: drawer undefined at index ${room.drawerIndex}`);
+    return startChoosingPhase(io, roomId, room);
+  }
 
   // Broadcast to the WHOLE room — include drawerEmail so client decides what to show
   // This avoids the stale-socket-ID race condition entirely
@@ -606,6 +610,12 @@ module.exports = (io) => {
           if (room.players.length === 0) {
             clearRoomTimers(room);
             rooms.delete(roomId);
+          } else if (room.players.length === 1 && room.gameState !== 'LOBBY') {
+            systemMsg(io, roomId, "⚠️ Not enough operatives. Extraction starting...", "WARN");
+            clearRoomTimers(room);
+            room.gameState = 'LEADERBOARD';
+            io.to(roomId).emit('updatePlayers', room.players);
+            io.to(roomId).emit('updateGameState', { state: 'LEADERBOARD', winner: room.players[0] });
           }
         }
       });
