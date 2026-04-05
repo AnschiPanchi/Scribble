@@ -4,6 +4,9 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const Session = require('../models/Session');
 
+const { sendVerificationEmail } = require('../utils/mailer');
+const crypto = require('crypto');
+
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateTokens = (userId) => {
@@ -14,18 +17,47 @@ const generateTokens = (userId) => {
 
 exports.register = async (req, res) => {
   // Traditional Registration
+  let user = null;
   try {
     const { username, email, password } = req.body;
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ error: 'Email already exists' });
-    
+
+    // Check for existing scouts
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) return res.status(400).json({ error: 'This email is already in the database.' });
+
+    const existingUser = await User.findOne({ username });
+    if (existingUser) return res.status(400).json({ error: 'Callsign already taken by another operator.' });
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email, password: hashedPassword });
-    
-    // Todo: Nodemailer email verification logic
-    res.status(201).json({ message: 'User registered successfully. Please verify email.' });
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
+    user = await User.create({
+      username,
+      email,
+      password: hashedPassword,
+      isEmailVerified: false,
+      verificationToken
+    });
+
+    try {
+      await sendVerificationEmail(email, verificationToken);
+    } catch (mailErr) {
+      console.error(`\x1b[33m⚠ Mailer Offline: ${mailErr.message}\x1b[0m`);
+      // In dev, let them pass through even if email fails
+      if (process.env.NODE_ENV !== 'development') {
+        throw mailErr;
+      }
+    }
+
+    res.status(201).json({
+      message: 'Account initialized successfully.',
+      debug: process.env.NODE_ENV === 'development' ? 'Email delivery skipped in dev mode.' : null
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (user && user._id) {
+      await User.findByIdAndDelete(user._id);
+    }
+    res.status(500).json({ error: `System Failure: ${err.message}` });
   }
 };
 
@@ -35,12 +67,17 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user || user.googleId) return res.status(400).json({ error: 'Invalid credentials or use Google Login' });
-    
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(400).json({ error: 'Invalid credentials' });
-    
+
+    // Identity Lockdown: Mandatory Email Verification Check
+    if (!user.isEmailVerified) {
+      return res.status(403).json({ error: 'Mission Denied: Identity not verified. Check your encrypted email.' });
+    }
+
     const { accessToken, refreshToken } = generateTokens(user._id);
-    
+
     // Store session
     await Session.create({
       userId: user._id,
@@ -78,7 +115,7 @@ exports.refresh = async (req, res) => {
     }
 
     const tokens = generateTokens(session.userId._id);
-    
+
     // Rotate token
     session.refreshToken = tokens.refreshToken;
     session.lastActive = Date.now();
@@ -112,7 +149,9 @@ exports.logout = async (req, res) => {
 
 exports.googleAuth = async (req, res) => {
   try {
-    const { token } = req.body;
+    const token = req.body.idToken || req.body.token;
+    if (!token) return res.status(400).json({ error: 'Auth token missing' });
+
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID
@@ -149,5 +188,24 @@ exports.googleAuth = async (req, res) => {
     res.status(200).json({ accessToken, user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar } });
   } catch (err) {
     res.status(500).json({ error: 'Google Auth Failed' });
+  }
+};
+
+exports.verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+    const user = await User.findOne({ verificationToken: token });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired verification token.' });
+    }
+
+    user.isEmailVerified = true;
+    user.verificationToken = undefined;
+    await user.save();
+
+    res.status(200).json({ message: 'Identity confirmed. Access granted to Scribble X.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Verification system offline.' });
   }
 };

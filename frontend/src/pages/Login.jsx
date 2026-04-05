@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { loginUser } from '../store/slices/authSlice';
-import { motion } from 'framer-motion';
+import { loginUser, registerUser, googleLogin, clearError } from '../store/slices/authSlice';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldCheck, User as UserIcon, Lock, AtSign, ArrowRight } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
     const [isRegister, setIsRegister] = useState(false);
@@ -10,106 +12,158 @@ const Login = () => {
     const [username, setUsername] = useState('');
     
     const dispatch = useDispatch();
-    const { loading, error } = useSelector((state) => state.auth);
+    const { loading, error, registrationSuccess } = useSelector((state) => state.auth);
+
+    useEffect(() => {
+        dispatch(clearError());
+    }, [isRegister, dispatch]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (isRegister) {
-            // we'll implement register action later if needed
-            console.log('Registering...', { email, password, username });
+            dispatch(registerUser({ username, email, password }));
         } else {
             dispatch(loginUser({ email, password }));
         }
     };
 
+    const handleGoogleSuccess = (credentialResponse) => {
+        dispatch(googleLogin(credentialResponse.credential));
+    };
+
     return (
-        <div className="flex items-center justify-center min-h-screen px-4 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a]">
+        <div className="flex items-center justify-center min-h-screen px-4 bg-[#09090b] relative overflow-hidden">
+            {/* Tactical Grid Background Overlay */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#18181b_1px,transparent_1px),linear-gradient(to_bottom,#18181b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-20 pointer-events-none" />
+            
             <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-md p-8 bg-[#1a2236] border border-white/10 rounded-2xl shadow-2xl backdrop-blur-xl"
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                className="w-full max-w-md p-8 bg-[#18181b] border border-[#27272a] rounded-[1.25rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] backdrop-blur-xl relative z-10"
             >
                 <div className="mb-8 text-center">
-                    <h1 className="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">
-                        SCRIBBLE-X
+                    <div className="inline-flex items-center justify-center w-12 h-12 mb-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                         <ShieldCheck size={24} />
+                    </div>
+                    <h1 className="text-3xl font-black tracking-[-0.04em] text-white uppercase italic">
+                        Scribble<span className="text-indigo-500 font-black">X</span>
                     </h1>
-                    <p className="mt-2 text-sm text-slate-400">Join the ultimate artistic battleground</p>
+                    <p className="mt-2 text-xs font-black tracking-widest text-[#52525b] uppercase">Sign In to continue</p>
                 </div>
 
+                {registrationSuccess && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: -10 }} 
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-black text-emerald-400 text-center uppercase tracking-widest"
+                    >
+                        Account created! Access key sent to email.
+                    </motion.div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {isRegister && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}>
-                            <label className="block mb-1 text-sm font-medium text-slate-300">Username</label>
-                            <input 
-                                type="text" 
-                                value={username} 
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="w-full px-4 py-3 bg-[#0f172a] border border-white/5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all block"
-                                placeholder="Enter your display name"
-                                required
-                            />
-                        </motion.div>
-                    )}
+                    <AnimatePresence mode="wait">
+                        {isRegister && (
+                            <motion.div 
+                                initial={{ height: 0, opacity: 0 }} 
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <label className="block mb-2 text-[10px] font-black uppercase tracking-widest text-[#71717a]">Username</label>
+                                <div className="relative group">
+                                    <UserIcon size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#3f3f46] group-focus-within:text-indigo-400 transition-colors" />
+                                    <input 
+                                        type="text" 
+                                        value={username} 
+                                        onChange={(e) => setUsername(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-3 bg-[#09090b] border border-[#27272a] rounded-xl focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all text-sm font-medium"
+                                        placeholder="Enter your username"
+                                        required
+                                    />
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     <div>
-                        <label className="block mb-1 text-sm font-medium text-slate-300">Email Address</label>
-                        <input 
-                            type="email" 
-                            value={email} 
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 bg-[#0f172a] border border-white/5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all block"
-                            placeholder="you@example.com"
-                            required
-                        />
+                        <label className="block mb-2 text-[10px] font-black uppercase tracking-widest text-[#71717a]">Email</label>
+                        <div className="relative group">
+                            <AtSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#3f3f46] group-focus-within:text-indigo-400 transition-colors" />
+                            <input 
+                                type="email" 
+                                value={email} 
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full pl-10 pr-4 py-3 bg-[#09090b] border border-[#27272a] rounded-xl focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all text-sm font-medium"
+                                placeholder="operator@scribble-x.net"
+                                required
+                            />
+                        </div>
                     </div>
 
                     <div>
-                        <label className="block mb-1 text-sm font-medium text-slate-300">Password</label>
-                        <input 
-                            type="password" 
-                            value={password} 
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-[#0f172a] border border-white/5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all block"
-                            placeholder="••••••••"
-                            required
-                        />
+                        <label className="block mb-2 text-[10px] font-black uppercase tracking-widest text-[#71717a]">Password</label>
+                        <div className="relative group">
+                            <Lock size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#3f3f46] group-focus-within:text-indigo-400 transition-colors" />
+                            <input 
+                                type="password" 
+                                value={password} 
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full pl-10 pr-4 py-3 bg-[#09090b] border border-[#27272a] rounded-xl focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all text-sm font-medium"
+                                placeholder="••••••••••••"
+                                required
+                            />
+                        </div>
                     </div>
 
                     {error && (
-                        <p className="text-xs text-rose-500 animate-pulse">{error.error || 'Authentication Failed'}</p>
+                        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-[10px] font-black text-rose-500 text-center uppercase tracking-widest">
+                            {error.error || 'Access Denied'}
+                        </div>
                     )}
 
-                    <button 
+                    <motion.button 
                         type="submit" 
                         disabled={loading}
-                        className="w-full py-4 mt-4 font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-500 active:scale-95 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                        whileHover={{ backgroundColor: '#4f46e5' }}
+                        whileTap={{ scale: 0.96 }}
+                        className="w-full py-4 mt-2 font-black text-xs uppercase tracking-widest text-white bg-indigo-600 rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.2)] disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        {loading ? 'Processing...' : (isRegister ? 'Create Account' : 'Enter Arena')}
-                    </button>
+                        {loading ? 'Processing Mission...' : (
+                            <>
+                                {isRegister ? 'Create Account' : 'Sign In'}
+                                <ArrowRight size={14} />
+                            </>
+                        )}
+                    </motion.button>
                 </form>
 
-                <div className="relative my-8">
-                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/10"></span></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="px-2 bg-[#1a2236] text-slate-500">Or continue with</span></div>
+                <div className="my-6 flex items-center gap-4">
+                    <div className="h-[1px] flex-1 bg-[#27272a]" />
+                    <span className="text-[10px] font-bold text-[#3f3f46]">SECURE SSO</span>
+                    <div className="h-[1px] flex-1 bg-[#27272a]" />
                 </div>
 
-                <button 
-                    type="button"
-                    className="flex items-center justify-center w-full px-4 py-3 space-x-2 text-sm font-medium bg-white text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
-                >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                    <span>Google Identity</span>
-                </button>
-
-                <p className="mt-8 text-sm text-center text-slate-400">
-                    {isRegister ? 'Already an artist?' : 'New to the battleground?'}
-                    <button 
-                        onClick={() => setIsRegister(!isRegister)}
-                        className="ml-2 font-bold text-blue-400 hover:text-blue-300 transition-colors underline decoration-blue-500/30"
-                    >
-                        {isRegister ? 'Sign In' : 'Sign Up Free'}
-                    </button>
-                </p>
+                <div className="flex flex-col items-center gap-4">
+                    <GoogleLogin 
+                        onSuccess={handleGoogleSuccess} 
+                        onError={() => dispatch({ type: 'auth/error', payload: 'Google Login Failed' })}
+                        theme="filled_black"
+                        shape="pill"
+                        width="100%"
+                    />
+                    
+                    <p className="mt-4 text-[11px] text-center text-[#52525b] font-medium tracking-tight">
+                        {isRegister ? 'ALREADY A MEMBER?' : 'NOT A MEMBER YET?'}
+                        <button 
+                            onClick={() => setIsRegister(!isRegister)}
+                            className="ml-2 font-black text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest"
+                        >
+                            {isRegister ? 'Switch to Login' : 'Sign Up Free'}
+                        </button>
+                    </p>
+                </div>
             </motion.div>
         </div>
     );

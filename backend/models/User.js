@@ -23,9 +23,12 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  verificationToken: {
+    type: String
+  },
   coins: {
     type: Number,
-    default: 0
+    default: 10000
   },
   rank: {
     type: Number,
@@ -34,6 +37,14 @@ const userSchema = new mongoose.Schema({
   avatar: {
     type: String,
     default: 'default-avatar.png'
+  },
+  purchasedItems: {
+    type: [String],
+    default: []
+  },
+  activeGear: {
+    type: String,
+    default: null
   }
 }, { timestamps: true });
 
