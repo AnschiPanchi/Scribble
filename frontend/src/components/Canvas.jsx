@@ -21,10 +21,25 @@ const Canvas = ({ roomId, user, isDrawer, gameState }) => {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.strokeStyle = data.tool === 'eraser' ? '#09090b' : (data.color || '#6366f1');
+    
+    let strokeColor = data.color || '#6366f1';
+    if (data.gear === 'Golden Brush') strokeColor = '#fbbf24';
+    if (data.gear === 'Shadow Protocol') strokeColor = '#18181b';
+
+    ctx.strokeStyle = data.tool === 'eraser' ? '#09090b' : strokeColor;
     ctx.lineWidth = data.size || 5;
-    if (data.gear === 'Neon Trail') { ctx.shadowBlur = 12; ctx.shadowColor = data.color; }
+
+    // Gear Effects
+    if (data.gear === 'Neon Trail') { ctx.shadowBlur = 15; ctx.shadowColor = strokeColor; }
+    else if (data.gear === 'Solar Flare') { ctx.shadowBlur = 25; ctx.shadowColor = '#f59e0b'; }
+    else if (data.gear === 'Golden Brush') { ctx.shadowBlur = 20; ctx.shadowColor = '#fbbf24'; }
     else { ctx.shadowBlur = 0; }
+
+    if (data.gear === 'Glitch Ink' && Math.random() > 0.85) {
+       ctx.strokeStyle = '#f43f5e'; // random glitch color
+       ctx.lineWidth += 4;
+    }
+
     ctx.moveTo(data.lastX, data.lastY);
     ctx.quadraticCurveTo(data.cpX, data.cpY, data.x, data.y);
     ctx.stroke();
@@ -88,11 +103,28 @@ const Canvas = ({ roomId, user, isDrawer, gameState }) => {
       ctx.beginPath();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = tool === 'eraser' ? '#09090b' : color;
+
+      let drawColor = color;
+      if (user?.activeGear === 'Golden Brush') drawColor = '#fbbf24';
+      if (user?.activeGear === 'Shadow Protocol') drawColor = '#18181b';
+
+      ctx.strokeStyle = tool === 'eraser' ? '#09090b' : drawColor;
       ctx.lineWidth = brushSize;
+
+      // Local Gear Effects
       if (user?.activeGear === 'Neon Trail' && tool !== 'eraser') {
-        ctx.shadowBlur = 12; ctx.shadowColor = color;
+        ctx.shadowBlur = 15; ctx.shadowColor = drawColor;
+      } else if (user?.activeGear === 'Solar Flare' && tool !== 'eraser') {
+        ctx.shadowBlur = 25; ctx.shadowColor = '#f59e0b';
+      } else if (user?.activeGear === 'Golden Brush' && tool !== 'eraser') {
+        ctx.shadowBlur = 20; ctx.shadowColor = '#fbbf24';
       } else { ctx.shadowBlur = 0; }
+
+      if (user?.activeGear === 'Glitch Ink' && tool !== 'eraser' && Math.random() > 0.85) {
+         ctx.strokeStyle = '#f43f5e';
+         ctx.lineWidth += 4;
+      }
+
       ctx.moveTo(lastPos.current.x, lastPos.current.y);
       ctx.quadraticCurveTo(cpX, cpY, x, y);
       ctx.stroke();
@@ -100,7 +132,14 @@ const Canvas = ({ roomId, user, isDrawer, gameState }) => {
 
       socket.emit('drawStroke', {
         roomId,
-        strokeData: { x, y, cpX, cpY, lastX: lastPos.current.x, lastY: lastPos.current.y, tool, color, size: brushSize },
+        strokeData: { 
+          x, y, cpX, cpY, 
+          lastX: lastPos.current.x, 
+          lastY: lastPos.current.y, 
+          tool, color: drawColor, 
+          size: brushSize,
+          gear: user?.activeGear
+        },
       });
 
       lastPos.current = { x, y };

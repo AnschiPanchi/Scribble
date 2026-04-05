@@ -14,8 +14,12 @@ const Shop = () => {
     const items = [
         { id: 1, name: 'Neon Trail', price: 500, type: 'INK', description: 'Your lines emit high-intensity photons.', color: 'from-cyan-400 to-blue-500' },
         { id: 2, name: 'Static Shield', price: 1200, type: 'DEFENSE', description: 'Prevents players from seeing your hints.', color: 'from-indigo-500 to-purple-600' },
-        { id: 3, name: 'Void Eraser', price: 800, type: 'TOOL', description: 'Instantly vaporize specific strokes.', color: 'from-rose-500 to-pink-600' },
-        { id: 4, name: 'Golden Brush', price: 2500, type: 'RESTRICTED', description: 'A premium golden stroke for the elites.', color: 'from-amber-400 to-orange-500' },
+        { id: 3, name: 'Glitch Ink', price: 1500, type: 'INK', description: 'Strokes that fragment and strobe.', color: 'from-emerald-400 to-teal-500' },
+        { id: 4, name: 'Solar Flare', price: 2000, type: 'AURA', description: 'Radiate energy that glows around your brush.', color: 'from-orange-500 to-rose-600' },
+        { id: 5, name: 'Void Eraser', price: 800, type: 'TOOL', description: 'Instantly vaporize specific strokes.', color: 'from-rose-500 to-pink-600' },
+        { id: 6, name: 'Digital Ghost', price: 3000, type: 'AVATAR', description: 'Become an untraceable phantom of the web.', color: 'from-violet-600 to-fuchsia-700' },
+        { id: 7, name: 'Golden Brush', price: 5000, type: 'ELITE', description: 'A premium golden stroke for the elites.', color: 'from-amber-400 to-orange-500' },
+        { id: 8, name: 'Shadow Protocol', price: 4500, type: 'BANNED', description: 'Unauthorized stealth ink used by hackers.', color: 'from-zinc-700 to-black' },
     ];
 
     const handleBuy = async (item) => {
@@ -68,7 +72,11 @@ const Shop = () => {
                                     {item.id === 1 && <Wand2 size={24} />}
                                     {item.id === 2 && <Shield size={24} />}
                                     {item.id === 3 && <Zap size={24} />}
-                                    {item.id === 4 && <LayoutGrid size={24} />}
+                                    {item.id === 4 && <Shield size={24} />}
+                                    {item.id === 5 && <Zap size={24} />}
+                                    {item.id === 6 && <Shield size={24} />}
+                                    {item.id === 7 && <LayoutGrid size={24} />}
+                                    {item.id === 8 && <Shield size={24} />}
                                 </div>
                             </div>
                             

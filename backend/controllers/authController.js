@@ -93,7 +93,15 @@ exports.login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    res.status(200).json({ accessToken, user: { id: user._id, username: user.username, email: user.email } });
+    res.status(200).json({ accessToken, user: { 
+      id: user._id, 
+      username: user.username, 
+      email: user.email,
+      coins: user.coins,
+      purchasedItems: user.purchasedItems,
+      activeGear: user.activeGear,
+      avatar: user.avatar
+    } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -185,7 +193,15 @@ exports.googleAuth = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    res.status(200).json({ accessToken, user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar } });
+    res.status(200).json({ accessToken, user: { 
+      id: user._id, 
+      username: user.username, 
+      email: user.email, 
+      avatar: user.avatar,
+      coins: user.coins,
+      purchasedItems: user.purchasedItems,
+      activeGear: user.activeGear
+    } });
   } catch (err) {
     res.status(500).json({ error: 'Google Auth Failed' });
   }
@@ -207,5 +223,34 @@ exports.verifyEmail = async (req, res) => {
     res.status(200).json({ message: 'Identity confirmed. Access granted to Scribble X.' });
   } catch (err) {
     res.status(500).json({ error: 'Verification system offline.' });
+  }
+};
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const { id } = req.user; // From auth middleware (to be added)
+    const { username, avatar } = req.body;
+    
+    // Check if username taken (if changed)
+    if (username) {
+      const existing = await User.findOne({ username, _id: { $ne: id } });
+      if (existing) return res.status(400).json({ error: 'Callsign already taken.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      { $set: { username, avatar } },
+      { new: true }
+    );
+    
+    res.status(200).json({ user: {
+      username: user.username,
+      avatar: user.avatar,
+      coins: user.coins,
+      purchasedItems: user.purchasedItems,
+      activeGear: user.activeGear
+    }, message: 'Profile updated.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };

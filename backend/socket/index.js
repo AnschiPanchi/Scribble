@@ -1,3 +1,4 @@
+const User = require('../models/User');
 const { createWordDeck, popWords } = require('../utils/wordBank');
 
 // In-memory room store (use Redis in production)
@@ -279,6 +280,45 @@ const endGame = (roomId, io) => {
     players: sorted,
     winner: sorted[0]?.username,
   });
+
+  // 💰 Reward players with Ink-Coins (IC)
+  room.players.forEach(p => {
+    if (!p.isSpectator && !roomId.startsWith('test-')) {
+      const scoreReward = Math.floor(p.score / 4);
+      const reward = Math.max(scoreReward, 25);
+
+      setTimeout(async () => {
+        try {
+          const u = await User.findOneAndUpdate(
+            { email: p.email },
+            { $inc: { coins: reward } },
+            { new: true }
+          );
+          if (u) {
+            console.log(`\x1b[32m💰 Operator ${p.username} rewarded +${reward} IC (Total: ${u.coins})\x1b[0m`);
+            const socketInstance = io.sockets.sockets.get(p.socketId);
+            if (socketInstance) {
+              // Popup event
+              socketInstance.emit('gameReward', { 
+                coins: reward, 
+                total: u.coins,
+                message: p.score > 0 ? "Match Performance Reward" : "Participation Bonus"
+              });
+              // Chat confirmation (Private to user)
+              socketInstance.emit('chatMessage', {
+                user: { username: 'SYSTEM', type: 'DATA' },
+                message: `💰 Mission Reward: +${reward} IC credited to your ledger.`,
+                isSystem: true, systemType: 'BONUS', private: true,
+              });
+            }
+          }
+        } catch (err) {
+          console.error(`Reward failure for ${p.username}:`, err.message);
+        }
+      }, 250); 
+    }
+  });
+
   systemMsg(io, roomId, `🏆 ${sorted[0]?.username} wins with ${sorted[0]?.score} pts!`, 'WIN');
 
   // Cleanup room after 30s

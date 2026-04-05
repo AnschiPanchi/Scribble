@@ -5,12 +5,13 @@ import {
   setGameState, updatePlayers, addChatMessage,
   setRoom, syncTimer, playerGuessed, clearGuessers, resetGame,
 } from '../store/slices/gameSlice';
+import { updateUser } from '../store/slices/authSlice';
 import { socket } from '../socket';
 import Canvas from '../components/Canvas';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageSquare, Paintbrush, LayoutDashboard,
-  Zap, Eye, Star, Copy, Hash, Clock, Volume2, VolumeX,
+  Zap, Eye, Star, Copy, Hash, Clock, Volume2, VolumeX, X,
 } from 'lucide-react';
 import { soundManager } from '../utils/soundManager';
 
@@ -138,6 +139,8 @@ const Game = () => {
   const [countdown, setCountdown] = useState(5);
   const [isMuted, setIsMuted] = useState(false);
   const [roomConfig, setRoomConfig] = useState({ maxRounds: 5, drawTime: 80, maxPlayers: 8, wordCount: 3, difficulty: 'MIXED' });
+  const [rewardData, setRewardData] = useState(null);
+  const [showRewardOverlay, setShowRewardOverlay] = useState(false);
   const [searchParams] = useSearchParams();
 
   // Parse settings from URL (set by the room creator)
@@ -222,6 +225,14 @@ const Game = () => {
     socket.on('clearCanvas',     onClearCanvas);
     socket.on('roomSettings',    onRoomSettings);
     socket.on('roomFull',        onRoomFull);
+    socket.on('gameReward',      (data) => {
+      console.log('💎 REWARD RECEIVED:', data);
+      dispatch(updateUser({ coins: data.total }));
+      setRewardData(data);
+      setShowRewardOverlay(true);
+      if (!isMuted) soundManager.success();
+      setTimeout(() => setShowRewardOverlay(false), 10000); 
+    });
 
     return () => {
       active = false;
@@ -237,6 +248,7 @@ const Game = () => {
       socket.off('clearCanvas',     onClearCanvas);
       socket.off('roomSettings',    onRoomSettings);
       socket.off('roomFull',        onRoomFull);
+      socket.off('gameReward');
       dispatch(resetGame());
     };
   }, [user, dispatch, roomId]);
@@ -288,7 +300,54 @@ const Game = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-[#fafafa] overflow-hidden select-none font-sans tracking-tight">
+    <div className="flex h-screen bg-[#09090b] text-[#fafafa] overflow-hidden select-none font-sans tracking-tight relative">
+      
+      {/* ─── Mission Rewards Overlay ─────────────────────────────── */}
+      <AnimatePresence>
+        {showRewardOverlay && rewardData && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 50, x: '-50%' }} 
+            animate={{ opacity: 1, scale: 1, y: 0, x: '-50%' }} 
+            exit={{ opacity: 0, scale: 0.9, y: 50, x: '-50%' }}
+            style={{ left: '50%' }}
+            className="fixed bottom-10 z-[999] w-80 bg-[#18181b]/95 backdrop-blur-xl border-2 border-indigo-500/50 rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(79,70,229,0.5)] overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500" />
+            <div className="flex items-center justify-between mb-6">
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#52525b]">Extraction Complete</span>
+              <button onClick={() => setShowRewardOverlay(false)} className="text-[#52525b] hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20">
+                <Zap className="text-indigo-400" size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black italic uppercase tracking-tighter">Earnings <span className="text-indigo-500">Log</span></h3>
+                <p className="text-[10px] font-bold text-[#71717a] uppercase tracking-widest">{rewardData.message || 'Network Rewards Credited'}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center justify-between p-4 bg-[#09090b] rounded-2xl border border-[#27272a]">
+                <span className="text-xs font-black text-[#52525b] uppercase">Reward</span>
+                <span className="text-lg font-mono font-black text-emerald-400">+{rewardData.coins} IC</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-[#09090b] rounded-2xl border border-[#27272a]">
+                <span className="text-xs font-black text-[#52525b] uppercase">New Balance</span>
+                <span className="text-lg font-mono font-black text-white">{rewardData.total} IC</span>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setShowRewardOverlay(false)}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-[0_10px_20px_rgba(79,70,229,0.2)]"
+            >Acknowledge Data</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="flex flex-1 gap-6 p-6 max-h-screen">
 
         {/* ── Left Column: Players ──────────────────────────────── */}

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { logout } from '../store/slices/authSlice';
+import { logout, updateUser } from '../store/slices/authSlice';
+import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, ShoppingCart, Play, Plus, LogOut,
   Globe, Lock, X, Zap, Users, Clock, RefreshCw, BookOpen,
-  Target, Copy, ChevronRight,
+  Target, Copy, ChevronRight, User as UserIcon, Camera
 } from 'lucide-react';
 
 // ─── Settings option row (like scribble.io) ──────────────────────────────────
@@ -49,12 +50,16 @@ const Dashboard = () => {
     const navigate = useNavigate();
 
     const [showLobbyModal, setShowLobbyModal] = useState(false);
+    const [showProfileModal, setShowProfileModal] = useState(false);
     const [selectedMode, setSelectedMode] = useState(null); // 'public' | 'private'
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
     const [roomCode, setRoomCode] = useState('');
     const [showPrivateCode, setShowPrivateCode] = useState(false);
     const [privateCode, setPrivateCode] = useState('');
     const [privateRoomId, setPrivateRoomId] = useState('');
+
+    const [newUsername, setNewUsername] = useState(user?.username || '');
+    const [newAvatar, setNewAvatar] = useState(user?.avatar || '');
 
     const setSetting = (key, val) => setSettings(prev => ({ ...prev, [key]: val }));
 
@@ -87,6 +92,17 @@ const Dashboard = () => {
       setSelectedMode(null);
       setSettings(DEFAULT_SETTINGS);
       setShowLobbyModal(true);
+    };
+
+    const handleUpdateProfile = async () => {
+      try {
+        const res = await api.put('auth/profile', { username: newUsername, avatar: newAvatar });
+        dispatch(updateUser(res.data.user));
+        setShowProfileModal(false);
+        alert(res.data.message);
+      } catch (err) {
+        alert(err.response?.data?.error || 'Update failed');
+      }
     };
 
     return (
@@ -288,22 +304,93 @@ const Dashboard = () => {
               )}
             </AnimatePresence>
 
-            {/* ─── Bento Grid ──────────────────────────────────────────────── */}
+            {/* ─── Profile Lockdown Modal ───────────────────────────────── */}
+            <AnimatePresence>
+              {showProfileModal && (
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#09090b]/85 backdrop-blur-md"
+                >
+                  <motion.div
+                    initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
+                    className="w-full max-w-md bg-[#18181b] border border-[#27272a] rounded-[2.5rem] p-10 shadow-2xl overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between mb-8">
+                       <h2 className="text-2xl font-black uppercase italic tracking-tighter">Profile <span className="text-indigo-500">Lockdown</span></h2>
+                       <button onClick={() => setShowProfileModal(false)} className="p-2 text-[#52525b] hover:text-white transition-colors">
+                        <X size={20} />
+                       </button>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="flex justify-center mb-8">
+                        <div className="relative group">
+                          <div className="w-32 h-32 bg-zinc-900 rounded-[2.5rem] border-2 border-indigo-500/30 overflow-hidden">
+                            <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${newAvatar}`} alt="Avatar" />
+                          </div>
+                          <button 
+                            onClick={() => setNewAvatar(Math.random().toString(36).substring(7))}
+                            className="absolute -bottom-2 -right-2 p-3 bg-indigo-600 rounded-2xl border-4 border-[#18181b] group-hover:scale-110 transition-transform"
+                          >
+                            <RefreshCw size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-[#52525b] uppercase tracking-widest pl-2">Callsign</label>
+                        <input 
+                          type="text"
+                          value={newUsername}
+                          onChange={(e) => setNewUsername(e.target.value)}
+                          className="w-full bg-[#09090b] border border-[#27272a] rounded-2xl px-6 py-4 text-sm font-black tracking-widest outline-none focus:ring-1 focus:ring-indigo-500/50"
+                          placeholder="OPERATOR NAME"
+                        />
+                      </div>
+
+                      <motion.button
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleUpdateProfile}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-[0_10px_30px_rgba(79,70,229,0.2)] mt-4"
+                      >Save Identity Changes</motion.button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <main className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[140px]">
 
                 {/* Profile */}
                 <motion.div
                     whileHover={{ borderColor: '#6366f1' }}
-                    className="md:col-span-4 md:row-span-2 bg-[#18181b] border border-[#27272a] rounded-[2rem] p-8 flex flex-col justify-between group transition-all"
+                    onClick={() => {
+                        setNewUsername(user?.username || '');
+                        setNewAvatar(user?.avatar || '');
+                        setShowProfileModal(true);
+                    }}
+                    className="md:col-span-4 md:row-span-2 bg-[#18181b] border border-[#27272a] rounded-[2rem] p-8 flex flex-col justify-between group transition-all cursor-pointer relative overflow-hidden"
                 >
+                    <div className="absolute top-4 right-4 p-2 bg-[#27272a] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Camera size={14} className="text-[#a1a1aa]" />
+                    </div>
                     <div className="flex items-center gap-6">
                         <div className="w-20 h-20 bg-zinc-800 rounded-3xl border border-[#27272a] overflow-hidden group-hover:scale-105 transition-transform">
-                             <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${user?.username}`} alt="Avatar" />
+                             <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${user?.avatar || user?.username}`} alt="Avatar" />
                         </div>
                         <div>
                             <h2 className="text-2xl font-black tracking-tight mb-1">{user?.username}</h2>
-                            <p className="text-xs font-bold text-[#52525b] uppercase tracking-[0.2em] font-mono">Coins: {user?.coins || 0} IC</p>
+                            <p className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] font-mono">Rank {user?.rank || 1} Elite</p>
                         </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[#52525b] border-t border-[#27272a] pt-6">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">Gear</p>
+                        <p className="text-xs font-black text-[#a1a1aa]">{user?.activeGear || 'Standard Ink'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">Account</p>
+                        <p className="text-xs font-black text-[#a1a1aa]">{user?.email?.split('@')[0]}</p>
+                      </div>
                     </div>
                 </motion.div>
 
