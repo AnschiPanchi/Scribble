@@ -115,6 +115,11 @@ class SoundManager {
     this._tone(185, 0.2, 'sawtooth', 0.18, 0.1);
   }
 
+  // ✅ Alias for correctGuess to avoid Game.jsx crashes
+  success() {
+    this.correctGuess();
+  }
+
   toggle() {
     this.enabled = !this.enabled;
     return this.enabled;

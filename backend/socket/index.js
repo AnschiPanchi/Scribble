@@ -110,7 +110,7 @@ const startRound = (roomId, io) => {
   if (room.wordDeck.length < 3) {
     const discard = [...room.discardPile];
     room.discardPile = [];
-    // Fisher-Yates re-shuffle inline
+    // Fisher-Yates re-shuffle
     for (let i = discard.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [discard[i], discard[j]] = [discard[j], discard[i]];
@@ -118,8 +118,24 @@ const startRound = (roomId, io) => {
     room.wordDeck = discard;
   }
 
-  room.drawerIndex = (room.drawerIndex + 1) % room.players.length;
+  // ── Find Next Valid Drawer (Skip Spectators/AFK) ───────────────────────────
+  let attempts = 0;
+  const playerCount = room.players.length;
+  
+  do {
+    room.drawerIndex = (room.drawerIndex + 1) % playerCount;
+    attempts++;
+  } while (room.players[room.drawerIndex].isSpectator && attempts < playerCount);
+
   const drawer = room.players[room.drawerIndex];
+
+  // Safety: If no valid player found, reboot to lobby or end game
+  if (!drawer || drawer.isSpectator) {
+    systemMsg(io, roomId, "No active operatives found. Extraction initiated.", "WARN");
+    room.gameState = 'LOBBY';
+    io.to(roomId).emit('updateGameState', { state: 'LOBBY' });
+    return;
+  }
 
   // Pop words based on room wordCount setting
   room.wordOptions = popWords(room.wordDeck, room.wordCount);
@@ -127,16 +143,16 @@ const startRound = (roomId, io) => {
 
   room.gameState = 'CHOOSING';
 
-  // 1. Broadcast CHOOSING state to ALL players first
+  // 1. Broadcast CHOOSING state to ALL players
   io.to(roomId).emit('updateGameState', {
     state: 'CHOOSING',
-    drawer: drawer.username,
+    drawer: drawer.username || 'Operative',
     drawerId: drawer.email,
     wordLength: null,
   });
   io.to(roomId).emit('updatePlayers', room.players);
   io.to(roomId).emit('clearCanvas');
-  systemMsg(io, roomId, `${drawer.username} is choosing a word...`, 'INFO');
+  systemMsg(io, roomId, `${drawer.username} is choosing a protocol...`, 'INFO');
 
   // 2. Send private word options to drawer AFTER state update settles
   setTimeout(() => {
@@ -177,7 +193,8 @@ const startDrawingPhase = (roomId, io, wordObj) => {
   const drawer = room.players[room.drawerIndex];
   if (!drawer) {
     console.log(`⚠ Skip DRAWING in ${roomId}: drawer undefined at index ${room.drawerIndex}`);
-    return startChoosingPhase(io, roomId, room);
+    // No drawer? Skip to next round choosing sequence
+    return startRound(roomId, io);
   }
 
   // Broadcast to the WHOLE room — include drawerEmail so client decides what to show
@@ -223,9 +240,9 @@ const revealRound = (roomId, io) => {
 
   // Calculate drawer bonus
   const drawer = room.players[room.drawerIndex];
-  if (room.correctGuessers.length > 0) {
+  if (drawer && room.correctGuessers.length > 0) {
     const totalGuessPoints = room.correctGuessers.reduce((sum, g) => sum + g.earned, 0);
-    const drawerBonus = Math.floor((totalGuessPoints / room.players.length) * 0.5);
+    const drawerBonus = Math.floor((totalGuessPoints || 1 / room.players.length) * 0.5);
     drawer.score += drawerBonus;
     if (drawerBonus > 0) {
       const drawerSocket = io.sockets.sockets.get(drawer.socketId);
@@ -241,7 +258,10 @@ const revealRound = (roomId, io) => {
 
   // Track missed rounds for inactivity
   room.players.forEach(p => {
-    if (p.email !== drawer.email && !p.hasGuessed) {
+    // Correctly handle the edge case where drawer is missing or player is the drawer
+    const isThisDrawer = drawer && p.email === drawer.email;
+    
+    if (!isThisDrawer && !p.hasGuessed) {
       p.missedRounds = (p.missedRounds || 0) + 1;
       if (p.missedRounds >= 2) {
         p.isSpectator = true;
@@ -249,7 +269,7 @@ const revealRound = (roomId, io) => {
         if (ps) ps.emit('movedToSpectator', { reason: 'AFK: Missed 2+ rounds' });
         systemMsg(io, roomId, `${p.username} moved to Spectator for inactivity.`, 'WARN');
       }
-    } else if (p.hasGuessed) {
+    } else if (p.hasGuessed || isThisDrawer) {
       p.missedRounds = 0;
     }
   });
@@ -340,24 +360,34 @@ module.exports = (io) => {
     // ── Join Room ────────────────────────────────────────────────────────────
     socket.on('joinRoom', ({ roomId: requestRoomId, user, settings }) => {
       if (!user || !user.email) return;
-      let roomId = requestRoomId;
+      let roomId = requestRoomId?.toLowerCase().trim();
+      const isMatchmaking = roomId === 'match-lobby';
 
-      // Public Matchmaking — find open match- room or generate unique if no available
-      if (requestRoomId.startsWith('match-')) {
+      // ── Matchmaking Logic ───────────────────────────────────────────
+      if (isMatchmaking) {
+        // Look for an existing match-* room that's not full and in LOBBY state
         const available = Array.from(rooms.entries()).find(([id, r]) =>
           id.startsWith('match-') && 
-          id !== 'match-lobby' && // prefer unique rooms
+          id !== 'match-lobby' && 
           r.players.length < r.maxPlayers && 
-          r.gameState === 'LOBBY'
+          ['LOBBY', 'STARTING', 'CHOOSING', 'DRAWING'].includes(r.gameState)
         );
         
         if (available) {
           roomId = available[0];
-        } else if (requestRoomId === 'match-lobby') {
-          // No available rooms: create a brand new unique match room
-          roomId = `match-${Math.random().toString(36).substring(2, 8)}`;
+        } else {
+          // No room found? Create a brand new unique one
+          roomId = `match-${Math.random().toString(36).substring(2, 9)}`;
         }
       }
+
+      // Create room object if it doesn't exist yet
+      if (!rooms.has(roomId)) {
+        rooms.set(roomId, createRoom(settings || {}));
+        console.log(`\x1b[35m🏠 Room Created: ${roomId}\x1b[0m`);
+      }
+
+      const room = rooms.get(roomId);
 
       // Cross-room deduplication (removes from other rooms before entering new one)
       rooms.forEach((r, rId) => {
@@ -372,14 +402,6 @@ module.exports = (io) => {
           console.log(`\x1b[33m⚡ Moved ${user.email} from room ${rId} → ${roomId}\x1b[0m`);
         }
       });
-
-      // Create room if needed (first player's settings apply)
-      if (!rooms.has(roomId)) {
-        rooms.set(roomId, createRoom(settings || {}));
-        console.log(`\x1b[35m🏠 Room Created: ${roomId} (via ${requestRoomId})\x1b[0m`);
-      }
-
-      const room = rooms.get(roomId);
 
       // Reject if room is full and player is not reconnecting
       const existingCheck = room.players.findIndex(p => p.email === user.email);
@@ -436,6 +458,12 @@ module.exports = (io) => {
         if (room.gameState === 'CHOOSING' && drawer?.email === user.email && room.wordOptions.length > 0) {
           socket.emit('chooseWord', { options: room.wordOptions, drawer: drawer.username });
         }
+        // Check to start game (even on re-join if needed)
+        const minPlayers = roomId.startsWith('test-') ? 1 : 2;
+        if (room.players.length >= minPlayers && room.gameState === 'LOBBY') {
+          startGame(roomId, io);
+        }
+
         console.log(`\x1b[32m🔄 Reconnected: ${user.username} → ${roomId}\x1b[0m`);
         return;
       }
@@ -451,12 +479,24 @@ module.exports = (io) => {
       room.players.push(player);
 
       io.to(roomId).emit('updatePlayers', room.players);
-      socket.emit('updateGameState', {
+      const drawer = room.players[room.drawerIndex];
+      const statePayload = {
         state: room.gameState,
         round: room.round,
         maxRounds: room.maxRounds,
         timer: room.timer,
-      });
+        drawer: drawer?.username,
+        drawerId: drawer?.email,
+      };
+
+      if (room.gameState === 'DRAWING' || room.gameState === 'REVEAL') {
+        statePayload.wordMask = room.currentWord?.replace(/[^ ]/g, '_');
+        statePayload.wordLength = room.currentWord?.length;
+        statePayload.difficulty = room.currentWordObj?.difficulty;
+        if (room.gameState === 'REVEAL') statePayload.word = room.currentWord;
+      }
+
+      socket.emit('updateGameState', statePayload);
 
       systemMsg(io, roomId, `${user.username} joined the arena.`, 'JOIN');
 
@@ -482,24 +522,33 @@ module.exports = (io) => {
 
     // ── Draw Stroke ───────────────────────────────────────────────────────────
     socket.on('drawStroke', (payload) => {
-      const room = rooms.get(payload.roomId);
+      let roomId = payload.roomId;
+      let room = rooms.get(roomId);
+
+      // Safety Net: Auto-resolve if ID is stale/lobby
+      if (!room || roomId === 'match-lobby' || roomId === 'lobby') {
+        rooms.forEach((r, rId) => {
+          if (r.players.some(p => p.socketId === socket.id)) {
+            room = r;
+            roomId = rId;
+          }
+        });
+      }
       if (!room) return;
 
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
 
-      // AFK Reset if drawer is drawing
       const drawer = room.players[room.drawerIndex];
       if (drawer?.socketId === socket.id) {
         room.lastDrawerActivity = Date.now();
       }
 
-      // Log stroke for late-joiners & replay
       if (room.gameState === 'DRAWING') {
         room.strokeHistory.push({ ...payload.strokeData, gear: player?.activeGear });
       }
 
-      socket.to(payload.roomId).emit('drawStroke', {
+      socket.to(roomId).emit('drawStroke', {
         ...payload.strokeData,
         gear: player?.activeGear,
       });
@@ -507,10 +556,21 @@ module.exports = (io) => {
 
     // ── Clear Canvas ──────────────────────────────────────────────────────────
     socket.on('clearCanvas', (roomId) => {
-      const room = rooms.get(roomId);
+      let targetRoom = roomId;
+      let room = rooms.get(targetRoom);
+
+      if (!room || targetRoom === 'match-lobby' || targetRoom === 'lobby') {
+        rooms.forEach((r, rId) => {
+          if (r.players.some(p => p.socketId === socket.id)) {
+            room = r;
+            targetRoom = rId;
+          }
+        });
+      }
       if (!room) return;
+
       room.strokeHistory = [];
-      socket.to(roomId).emit('clearCanvas');
+      socket.to(targetRoom).emit('clearCanvas');
     });
 
     // ── Submit Guess ──────────────────────────────────────────────────────────
@@ -597,28 +657,58 @@ module.exports = (io) => {
       io.to(roomId).emit('chatMessage', { user, message: guess });
     });
 
-    // ── Disconnect ────────────────────────────────────────────────────────────
-    socket.on('disconnect', () => {
-      console.log(`\x1b[31m⚠ Socket Disconnected: ${socket.id}\x1b[0m`);
-      rooms.forEach((room, roomId) => {
+    // ── Generic Player Leave ──────────────────────────────────────────────────
+    const handlePlayerLeave = (socket, targetRoomId) => {
+      const cleanTargetId = targetRoomId?.toLowerCase().trim();
+      rooms.forEach((room, rId) => {
+        // If targetRoomId is set, only check that specific room (case-insensitive)
+        if (cleanTargetId && rId !== cleanTargetId) return;
+
         const idx = room.players.findIndex(p => p.socketId === socket.id);
         if (idx !== -1) {
           const [removed] = room.players.splice(idx, 1);
-          systemMsg(io, roomId, `${removed.username} left the arena.`, 'LEAVE');
-          io.to(roomId).emit('updatePlayers', room.players);
+          systemMsg(io, rId, `${removed.username} left the arena.`, 'LEAVE');
+          io.to(rId).emit('updatePlayers', room.players);
 
           if (room.players.length === 0) {
             clearRoomTimers(room);
-            rooms.delete(roomId);
-          } else if (room.players.length === 1 && room.gameState !== 'LOBBY') {
-            systemMsg(io, roomId, "⚠️ Not enough operatives. Extraction starting...", "WARN");
-            clearRoomTimers(room);
-            room.gameState = 'LEADERBOARD';
-            io.to(roomId).emit('updatePlayers', room.players);
-            io.to(roomId).emit('updateGameState', { state: 'LEADERBOARD', winner: room.players[0] });
+            rooms.delete(rId);
+          } else {
+            // Check if drawer left
+            const drawerIdx = room.drawerIndex;
+            // Handle if the player who left was the drawing player
+            if (idx === drawerIdx) {
+              systemMsg(io, rId, "⚠️ Drawer extracted. Rebooting round...", "WARN");
+              clearRoomTimers(room);
+              if (room.players.length >= 2) {
+                revealRound(rId, io);
+              } else {
+                room.gameState = 'LEADERBOARD';
+                io.to(rId).emit('updateGameState', { state: 'LEADERBOARD', players: room.players, winner: room.players[0]?.username });
+              }
+            } else if (room.players.length === 1 && room.gameState !== 'LOBBY' && !rId.startsWith('test-')) {
+              // Only one player left? End the game immediately (unless it's a solo test room)
+              systemMsg(io, rId, "⚠️ Match terminated: Not enough operatives remaining.", "WARN");
+              clearRoomTimers(room);
+              room.gameState = 'LEADERBOARD';
+              io.to(rId).emit('updateGameState', { state: 'LEADERBOARD', players: room.players, winner: room.players[0]?.username });
+            }
+            io.to(rId).emit('updatePlayers', room.players);
           }
         }
       });
+    };
+
+    socket.on('leaveRoom', (roomId) => {
+        console.log(`\x1b[33m👋 Leave Room: ${socket.id} from ${roomId}\x1b[0m`);
+        handlePlayerLeave(socket, roomId);
+        if (roomId) socket.leave(roomId);
+    });
+
+    // ── Disconnect ────────────────────────────────────────────────────────────
+    socket.on('disconnect', () => {
+      console.log(`\x1b[31m⚠ Socket Disconnected: ${socket.id}\x1b[0m`);
+      handlePlayerLeave(socket);
     });
   });
 };

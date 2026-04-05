@@ -83,8 +83,12 @@ const Dashboard = () => {
     };
 
     const handleJoinWithCode = () => {
-      const code = roomCode.trim().toUpperCase();
+      let code = roomCode.trim().toUpperCase();
       if (!code) return;
+      // Forgive users who paste the full "PRIVATE-ABCD" instead of just "ABCD"
+      if (code.startsWith('PRIVATE-')) {
+        code = code.replace('PRIVATE-', '');
+      }
       navigate(`/arena/private-${code}`);
     };
 
